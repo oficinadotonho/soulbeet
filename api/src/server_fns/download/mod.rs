@@ -7,6 +7,8 @@ use shared::download::{DownloadProgress, DownloadableItem, QueuedDownload};
 use dioxus::logger::tracing::{info, warn};
 #[cfg(feature = "server")]
 use tokio::sync::broadcast;
+#[cfg(feature = "server")]
+use uuid::Uuid;
 
 #[cfg(feature = "server")]
 use crate::{server_fns::server_error, AuthSession};
@@ -17,9 +19,11 @@ use crate::globals::{
     USER_CHANNELS,
 };
 #[cfg(feature = "server")]
-use crate::services::download_backend;
+use crate::services::{download_backend, downloaders};
 
 // Local modules
+#[cfg(feature = "server")]
+mod history;
 #[cfg(feature = "server")]
 pub mod import;
 #[cfg(feature = "server")]
@@ -31,6 +35,8 @@ pub mod utils;
 
 #[cfg(feature = "server")]
 use self::monitor::DownloadMonitor;
+#[cfg(feature = "server")]
+use history::persist_queued_attempts;
 
 #[cfg(feature = "server")]
 async fn do_download(
@@ -120,7 +126,21 @@ pub struct DownloadRequest {
 
 #[post("/api/downloads/queue", auth: AuthSession)]
 pub async fn download(req: DownloadRequest) -> Result<Vec<QueuedDownload>, ServerFnError> {
-    let username = auth.0.username;
+    queue_downloads_for_user(auth.0.sub, auth.0.username, req).await
+}
+
+#[cfg(feature = "server")]
+pub async fn queue_downloads_for_user(
+    user_id: String,
+    username: String,
+    req: DownloadRequest,
+) -> Result<Vec<QueuedDownload>, ServerFnError> {
+    let requested_items = req.items.clone();
+    let action_id = Uuid::new_v4().to_string();
+    let backend_id = req
+        .backend
+        .clone()
+        .unwrap_or_else(|| downloaders::SLSKD.to_string());
 
     let target_path_buf = std::path::Path::new(&req.target_folder).to_path_buf();
     if let Err(e) = tokio::fs::create_dir_all(&target_path_buf).await {
@@ -131,6 +151,15 @@ pub async fn download(req: DownloadRequest) -> Result<Vec<QueuedDownload>, Serve
     }
 
     let res = do_download(req.items, req.backend.as_deref()).await?;
+    persist_queued_attempts(
+        &user_id,
+        &action_id,
+        &backend_id,
+        &req.target_folder,
+        &requested_items,
+        &res,
+    )
+    .await;
 
     let (failed, successful): (Vec<_>, Vec<_>) =
         res.iter().cloned().partition(|d| d.error.is_some());
@@ -171,6 +200,7 @@ pub async fn download(req: DownloadRequest) -> Result<Vec<QueuedDownload>, Serve
             download_filenames,
             target_path,
             tx,
+            user_id,
             task_cancellation,
             task_username.clone(),
         );

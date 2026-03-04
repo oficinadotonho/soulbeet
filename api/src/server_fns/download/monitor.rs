@@ -5,6 +5,7 @@
 
 use dioxus::logger::tracing::{debug, info, warn};
 use shared::download::{DownloadProgress, DownloadState};
+use shared::history::DownloadHistoryStatus;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -12,6 +13,7 @@ use tokio::sync::broadcast;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+use super::history::{persist_download_state, persist_download_timeout};
 use super::process::process_downloads;
 use crate::config::CONFIG;
 use crate::services::download_backend;
@@ -31,6 +33,8 @@ struct TrackState {
     first_seen: Option<Instant>,
     /// Whether this track has been processed (imported or marked as failed).
     processed: bool,
+    /// Last download status already persisted to the history table.
+    persisted_download_status: Option<DownloadHistoryStatus>,
 }
 
 /// Monitors download progress from slskd and triggers processing on completion.
@@ -41,6 +45,8 @@ pub struct DownloadMonitor {
     target_path: PathBuf,
     /// Broadcast sender for UI updates.
     tx: broadcast::Sender<Vec<DownloadProgress>>,
+    /// Current user ID for history persistence.
+    user_id: String,
     /// Per-track state tracking.
     track_states: HashMap<String, TrackState>,
     /// Whether album mode is enabled.
@@ -57,6 +63,7 @@ impl DownloadMonitor {
         filenames: Vec<String>,
         target_path: PathBuf,
         tx: broadcast::Sender<Vec<DownloadProgress>>,
+        user_id: String,
         cancellation_token: CancellationToken,
         username: String,
     ) -> Self {
@@ -68,6 +75,7 @@ impl DownloadMonitor {
                     TrackState {
                         first_seen: None,
                         processed: false,
+                        persisted_download_status: Some(DownloadHistoryStatus::Queued),
                     },
                 )
             })
@@ -77,6 +85,7 @@ impl DownloadMonitor {
             filenames,
             target_path,
             tx,
+            user_id,
             track_states,
             album_mode: CONFIG.is_album_mode(),
             cancellation_token,
@@ -263,6 +272,8 @@ impl DownloadMonitor {
                     continue;
                 }
 
+                self.persist_state_transition(&key, download).await;
+
                 // Check per-track timeout
                 if let Some(first_seen) = self.track_states[&key].first_seen {
                     if first_seen.elapsed() > PER_TRACK_TIMEOUT && !is_terminal_state(&download.state) {
@@ -277,6 +288,15 @@ impl DownloadMonitor {
                             ..download.clone()
                         };
                         let _ = self.tx.send(vec![timeout_entry]);
+                        persist_download_timeout(
+                            &self.user_id,
+                            &download.item,
+                            "Download timed out after 1 hour",
+                        )
+                        .await;
+                        if let Some(state) = self.track_states.get_mut(&key) {
+                            state.persisted_download_status = Some(DownloadHistoryStatus::Timeout);
+                        }
                         self.track_states.get_mut(&key).unwrap().processed = true;
                         continue;
                     }
@@ -292,8 +312,9 @@ impl DownloadMonitor {
                     let dl = download.clone();
                     let tp = self.target_path.clone();
                     let tx_clone = self.tx.clone();
+                    let user_id = self.user_id.clone();
                     tokio::spawn(async move {
-                        process_downloads(vec![dl], tp, tx_clone).await;
+                        process_downloads(vec![dl], user_id, tp, tx_clone).await;
                     });
                 }
 
@@ -349,9 +370,37 @@ impl DownloadMonitor {
                 "Album mode: Processing {} successful downloads together",
                 successful.len()
             );
-            process_downloads(successful, self.target_path.clone(), self.tx.clone()).await;
+            process_downloads(
+                successful,
+                self.user_id.clone(),
+                self.target_path.clone(),
+                self.tx.clone(),
+            )
+            .await;
         } else {
             info!("Album mode: No successful downloads to process");
+        }
+    }
+
+    /// Persist download state transitions only when status actually changes.
+    async fn persist_state_transition(&mut self, key: &str, download: &DownloadProgress) {
+        let Some(next_status) = history_download_status(&download.state) else {
+            return;
+        };
+
+        let current = self
+            .track_states
+            .get(key)
+            .and_then(|state| state.persisted_download_status);
+
+        if current == Some(next_status) {
+            return;
+        }
+
+        persist_download_state(&self.user_id, download).await;
+
+        if let Some(state) = self.track_states.get_mut(key) {
+            state.persisted_download_status = Some(next_status);
         }
     }
 }
@@ -403,4 +452,15 @@ pub fn filenames_match(a: &str, b: &str) -> bool {
     let file_b = norm_b.rsplit('/').next().unwrap_or(&norm_b);
 
     file_a == file_b
+}
+
+fn history_download_status(state: &DownloadState) -> Option<DownloadHistoryStatus> {
+    match state {
+        DownloadState::Queued => Some(DownloadHistoryStatus::Queued),
+        DownloadState::InProgress => Some(DownloadHistoryStatus::InProgress),
+        DownloadState::Completed => Some(DownloadHistoryStatus::Completed),
+        DownloadState::Failed(_) => Some(DownloadHistoryStatus::Failed),
+        DownloadState::Cancelled => Some(DownloadHistoryStatus::Cancelled),
+        DownloadState::Importing | DownloadState::Imported | DownloadState::ImportSkipped => None,
+    }
 }

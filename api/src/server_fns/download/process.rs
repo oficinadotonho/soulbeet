@@ -17,6 +17,7 @@ use crate::config::CONFIG;
 #[cfg(feature = "server")]
 pub async fn process_downloads(
     successful_downloads: Vec<DownloadProgress>,
+    user_id: String,
     target_path: std::path::PathBuf,
     tx: broadcast::Sender<Vec<DownloadProgress>>,
 ) {
@@ -64,21 +65,43 @@ pub async fn process_downloads(
             }
 
             for (source_path, entries) in pending_imports {
-                import_group(entries, source_path, target_path.clone(), tx.clone(), true).await;
+                import_group(
+                    entries,
+                    user_id.clone(),
+                    source_path,
+                    target_path.clone(),
+                    tx.clone(),
+                    true,
+                )
+                .await;
             }
 
             for download in singletons {
                 if let Some(path) = resolve_download_path(&download.item, &download_path_buf) {
-                    import_group(vec![download], path, target_path.clone(), tx.clone(), false)
-                        .await;
+                    import_group(
+                        vec![download],
+                        user_id.clone(),
+                        path,
+                        target_path.clone(),
+                        tx.clone(),
+                        false,
+                    )
+                    .await;
                 }
             }
         } else {
             // singleton mode
             for download in successful_downloads {
                 if let Some(path) = resolve_download_path(&download.item, &download_path_buf) {
-                    import_group(vec![download], path, target_path.clone(), tx.clone(), false)
-                        .await;
+                    import_group(
+                        vec![download],
+                        user_id.clone(),
+                        path,
+                        target_path.clone(),
+                        tx.clone(),
+                        false,
+                    )
+                    .await;
                 } else {
                     let failed_entry = DownloadProgress {
                         state: DownloadState::Failed("Could not resolve file path".into()),

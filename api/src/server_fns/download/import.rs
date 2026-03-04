@@ -3,12 +3,16 @@ use dioxus::logger::tracing::{info, warn};
 #[cfg(feature = "server")]
 use shared::download::{DownloadProgress, DownloadState};
 #[cfg(feature = "server")]
+use shared::history::ImportHistoryStatus;
+#[cfg(feature = "server")]
 use soulbeet::ImportResult;
 #[cfg(feature = "server")]
 use std::path::Path;
 #[cfg(feature = "server")]
 use tokio::sync::broadcast;
 
+#[cfg(feature = "server")]
+use super::history::persist_import_state;
 #[cfg(feature = "server")]
 use crate::services::music_importer;
 
@@ -51,6 +55,7 @@ async fn cleanup_empty_parent_dir(file_path: &str) {
 #[cfg(feature = "server")]
 pub async fn import_group(
     entries: Vec<DownloadProgress>,
+    user_id: String,
     source_path: String,
     target_path: std::path::PathBuf,
     tx: broadcast::Sender<Vec<DownloadProgress>>,
@@ -69,6 +74,18 @@ pub async fn import_group(
         })
         .collect();
     let _ = tx.send(importing_entries);
+    for entry in &entries {
+        persist_import_state(
+            &user_id,
+            &entry.item,
+            ImportHistoryStatus::InProgress,
+            None,
+            false,
+            None,
+            None,
+        )
+        .await;
+    }
 
     let importer = match music_importer(None).await {
         Ok(imp) => imp,
@@ -83,6 +100,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(failed_entries);
+            let ended_at = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Failed,
+                    Some(format!("No importer available: {e}")),
+                    true,
+                    None,
+                    Some(ended_at.clone()),
+                )
+                .await;
+            }
             return;
         }
     };
@@ -99,6 +129,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(imported_entries);
+            let now = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Completed,
+                    None,
+                    false,
+                    Some(now.clone()),
+                    Some(now.clone()),
+                )
+                .await;
+            }
         }
         Ok(ImportResult::Skipped) => {
             info!("Import skipped items");
@@ -110,6 +153,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(skipped_entries);
+            let ended_at = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Skipped,
+                    None,
+                    false,
+                    None,
+                    Some(ended_at.clone()),
+                )
+                .await;
+            }
 
             for entry in &entries {
                 cleanup_failed_file(&entry.item).await;
@@ -127,6 +183,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(failed_entries);
+            let ended_at = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Failed,
+                    Some(format!("Import failed: {err}")),
+                    true,
+                    None,
+                    Some(ended_at.clone()),
+                )
+                .await;
+            }
 
             for entry in &entries {
                 cleanup_failed_file(&entry.item).await;
@@ -144,6 +213,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(failed_entries);
+            let ended_at = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Timeout,
+                    Some("Import timed out".to_string()),
+                    true,
+                    None,
+                    Some(ended_at.clone()),
+                )
+                .await;
+            }
 
             for entry in &entries {
                 cleanup_failed_file(&entry.item).await;
@@ -161,6 +243,19 @@ pub async fn import_group(
                 })
                 .collect();
             let _ = tx.send(failed_entries);
+            let ended_at = chrono::Utc::now().to_rfc3339();
+            for entry in &entries {
+                persist_import_state(
+                    &user_id,
+                    &entry.item,
+                    ImportHistoryStatus::Failed,
+                    Some(format!("Import error: {e}")),
+                    true,
+                    None,
+                    Some(ended_at.clone()),
+                )
+                .await;
+            }
 
             for entry in &entries {
                 cleanup_failed_file(&entry.item).await;
