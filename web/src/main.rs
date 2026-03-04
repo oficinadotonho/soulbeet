@@ -9,7 +9,7 @@ use dioxus::fullstack::WebSocketOptions;
 use websocket::use_resilient_websocket;
 
 use ui::{Downloads, Layout, Navbar, SearchReset, SettingsProvider};
-use views::{LoginPage, SearchPage, SettingsPage};
+use views::{HistoryPage, LoginPage, SearchPage, SettingsPage};
 
 mod auth;
 mod views;
@@ -26,6 +26,8 @@ pub enum Route {
         #[layout(WebNavbar)]
             #[route("/")]
             SearchPage {},
+            #[route("/history")]
+            HistoryPage {},
             #[route("/settings")]
             SettingsPage {},
 }
@@ -161,6 +163,24 @@ fn WebNavbar() -> Element {
                             stroke_linejoin: "round",
                             stroke_width: "2",
                             d: "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+                        }
+                    }
+                }
+                Link {
+                    class: "nav-link text-white font-medium border-b-2 border-transparent hover:border-beet-accent pb-0.5",
+                    active_class: "border-beet-accent",
+                    to: Route::HistoryPage {},
+                    span { class: "hidden md:block", "History" }
+                    svg {
+                        class: "md:hidden w-6 h-6",
+                        fill: "none",
+                        stroke: "currentColor",
+                        view_box: "0 0 24 24",
+                        path {
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            stroke_width: "2",
+                            d: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
                         }
                     }
                 }
