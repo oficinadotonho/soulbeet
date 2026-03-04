@@ -127,8 +127,7 @@ Files:
 
 ---
 
-## Backlog - Search Attempts History
+## Backlog - History Follow-ups
 
-- [ ] Persist metadata search attempts (`album` and `track`) with query, provider, status, timing, and result count.
-- [ ] Persist source download-search attempts (`start`/`poll`) including timeout and error outcomes.
-- [ ] Add history UI filters/switching for `Download Attempts` and `Search Attempts`.
+- [ ] Build retry flow in branch `feat/retry` (new attempt semantics + endpoint + UI).
+- [ ] Build cancel flow in branch `feat/cancel` (endpoint + UI + terminal state handling).
