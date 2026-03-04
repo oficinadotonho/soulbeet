@@ -274,3 +274,8 @@ pub struct HistoryIdRequest {
     pub id: String,
     pub kind: HistoryKind,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClearHistoryResponse {
+    pub deleted: u64,
+}
