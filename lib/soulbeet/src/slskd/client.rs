@@ -420,7 +420,7 @@ impl SoulseekClient {
                 info!("Search timeout reached");
                 self.active_searches.lock().await.remove(&search_id);
                 let _ = self.delete_search(&search_id).await;
-                return Ok((vec![], false, SearchState::Completed));
+                return Ok((vec![], false, SearchState::TimedOut));
             }
 
             let endpoint = format!("searches/{}/responses", search_id);
