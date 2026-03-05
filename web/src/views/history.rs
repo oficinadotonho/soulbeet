@@ -53,7 +53,7 @@ pub fn HistoryPage() -> Element {
     let mut date_from = use_signal(|| None::<String>);
     let mut date_to = use_signal(|| None::<String>);
 
-    let fetch_page = move |page_to_fetch: i32, replace: bool, suppress_error: bool| {
+    let fetch_page = move |page_to_fetch: i32, replace: bool, suppress_error: bool, user_initiated: bool| {
         let auth = auth;
         let current_kind = kind();
         let current_search = search();
@@ -104,7 +104,8 @@ pub fn HistoryPage() -> Element {
                     }
                 }
                 Err(fetch_error) => {
-                    if !suppress_error {
+                    // Suppress noisy initial-load errors on browser refresh.
+                    if !suppress_error && user_initiated {
                         error.set(Some(format!("Failed to load history: {fetch_error}")));
                     }
                 }
@@ -117,12 +118,12 @@ pub fn HistoryPage() -> Element {
     use_effect(move || {
         if !has_bootstrapped() {
             has_bootstrapped.set(true);
-            fetch_page(1, true, true);
+            fetch_page(1, true, true, false);
         }
     });
 
     let apply_filters = move |_| {
-        fetch_page(1, true, false);
+        fetch_page(1, true, false, true);
     };
 
     let load_more = move |_| {
@@ -133,7 +134,7 @@ pub fn HistoryPage() -> Element {
         if total_pages() == 0 || next_page > total_pages() {
             return;
         }
-        fetch_page(next_page, false, false);
+        fetch_page(next_page, false, false, true);
     };
 
     let mut switch_kind = move |next_kind: HistoryKind| {
@@ -145,7 +146,7 @@ pub fn HistoryPage() -> Element {
         page.set(1);
         total_pages.set(0);
         entries.set(vec![]);
-        fetch_page(1, true, false);
+        fetch_page(1, true, false, true);
     };
 
     let clear_all = move |_| {
@@ -196,7 +197,7 @@ pub fn HistoryPage() -> Element {
                 kind: entry_kind,
             };
             match auth.call(api::delete_history(req)).await {
-                Ok(_) => fetch_page(1, true, false),
+                Ok(_) => fetch_page(1, true, false, true),
                 Err(delete_error) => {
                     error.set(Some(format!("Delete failed: {delete_error}")));
                 }
@@ -397,7 +398,7 @@ pub fn HistoryPage() -> Element {
                     }
                 }
                 if let Some(message) = error() {
-                    p { class: "text-sm text-red-300", "{message}" }
+                    p { class: "text-sm text-red-300 font-mono", "{message}" }
                 }
             }
 
@@ -537,8 +538,8 @@ fn SearchEntryCard(entry: HistoryEntry, deleting: bool, on_delete: EventHandler<
                 }
             }
             div { class: "flex flex-wrap items-center gap-2 text-xs",
-                span { class: "px-2 py-1 rounded bg-purple-500/15 text-purple-200 border border-purple-500/30", "Type: {kind}" }
-                span { class: "px-2 py-1 rounded bg-yellow-500/15 text-yellow-200 border border-yellow-500/30", "Status: {status}" }
+                span { class: "px-2 py-1 rounded bg-white/10 text-gray-200 border border-white/20", "Type: {kind}" }
+                span { class: "px-2 py-1 rounded bg-blue-500/15 text-blue-200 border border-blue-500/30", "Status: {status}" }
                 span { class: "px-2 py-1 rounded bg-white/10 text-gray-200 border border-white/20", "Results: {entry.result_count.unwrap_or(0)}" }
             }
             if let Some(error) = entry.error_message.clone() {
