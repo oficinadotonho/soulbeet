@@ -74,6 +74,7 @@ pub async fn search_album(input: SearchQuery) -> Result<SearchResults, ServerFnE
     let provider = match metadata_provider(input.provider.as_deref()).await {
         Ok(provider) => provider,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             persist_search_attempt(NewSearchAttempt {
                 id: Uuid::new_v4().to_string(),
@@ -86,7 +87,7 @@ pub async fn search_album(input: SearchQuery) -> Result<SearchResults, ServerFnE
                 artist_text: input.artist,
                 status: SearchAttemptStatus::Failed,
                 result_count: 0,
-                error_message: Some(error.clone()),
+                error_message: Some(error_message),
                 started_at,
                 ended_at: Some(now.clone()),
                 created_at: now.clone(),
@@ -108,6 +109,7 @@ pub async fn search_album(input: SearchQuery) -> Result<SearchResults, ServerFnE
     {
         Ok(results) => results,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             persist_search_attempt(NewSearchAttempt {
                 id: Uuid::new_v4().to_string(),
@@ -120,7 +122,7 @@ pub async fn search_album(input: SearchQuery) -> Result<SearchResults, ServerFnE
                 artist_text,
                 status: SearchAttemptStatus::Failed,
                 result_count: 0,
-                error_message: Some(error.clone()),
+                error_message: Some(error_message),
                 started_at,
                 ended_at: Some(now.clone()),
                 created_at: now.clone(),
@@ -170,6 +172,7 @@ pub async fn search_track(input: SearchQuery) -> Result<SearchResults, ServerFnE
     let provider = match metadata_provider(input.provider.as_deref()).await {
         Ok(provider) => provider,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             persist_search_attempt(NewSearchAttempt {
                 id: Uuid::new_v4().to_string(),
@@ -182,7 +185,7 @@ pub async fn search_track(input: SearchQuery) -> Result<SearchResults, ServerFnE
                 artist_text: input.artist,
                 status: SearchAttemptStatus::Failed,
                 result_count: 0,
-                error_message: Some(error.clone()),
+                error_message: Some(error_message),
                 started_at,
                 ended_at: Some(now.clone()),
                 created_at: now.clone(),
@@ -204,6 +207,7 @@ pub async fn search_track(input: SearchQuery) -> Result<SearchResults, ServerFnE
     {
         Ok(results) => results,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             persist_search_attempt(NewSearchAttempt {
                 id: Uuid::new_v4().to_string(),
@@ -216,7 +220,7 @@ pub async fn search_track(input: SearchQuery) -> Result<SearchResults, ServerFnE
                 artist_text,
                 status: SearchAttemptStatus::Failed,
                 result_count: 0,
-                error_message: Some(error.clone()),
+                error_message: Some(error_message),
                 started_at,
                 ended_at: Some(now.clone()),
                 created_at: now.clone(),
@@ -287,6 +291,7 @@ pub async fn start_download_search(data: DownloadQuery) -> Result<String, Server
     {
         Ok(search_id) => search_id,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             persist_search_attempt(NewSearchAttempt {
                 id: Uuid::new_v4().to_string(),
@@ -299,7 +304,7 @@ pub async fn start_download_search(data: DownloadQuery) -> Result<String, Server
                 artist_text,
                 status: SearchAttemptStatus::Failed,
                 result_count: 0,
-                error_message: Some(error.clone()),
+                error_message: Some(error_message),
                 started_at,
                 ended_at: Some(now.clone()),
                 created_at: now.clone(),
@@ -343,13 +348,14 @@ pub async fn poll_download_search(input: PollQuery) -> Result<DownloadSearchResu
     let response = match backend.poll_search(&input.search_id).await {
         Ok(response) => response,
         Err(error) => {
+            let error_message = error.to_string();
             let now = now_utc();
             let _ = SearchAttemptRow::update_by_search_id(&SearchAttemptUpdate {
                 user_id,
                 search_id: input.search_id,
                 status: SearchAttemptStatus::Failed,
                 result_count: None,
-                error_message: Some(Some(error.clone())),
+                error_message: Some(Some(error_message)),
                 ended_at: Some(Some(now.clone())),
                 updated_at: now,
             })
