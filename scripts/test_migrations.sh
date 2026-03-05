@@ -84,7 +84,9 @@ run_pre_history_upgrade_test() {
 
   apply_sql_file "$DB_PRE" "$MIGRATIONS_DIR/20260304000000_download_history.sql"
   apply_sql_file "$DB_PRE" "$MIGRATIONS_DIR/20260304000001_search_attempt_history.sql"
-  apply_sql_file "$DB_PRE" "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql"
+  if [[ -f "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql" ]]; then
+    apply_sql_file "$DB_PRE" "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql"
+  fi
 
   assert_download_history_action_shape "$DB_PRE"
   assert_search_attempt_table_exists "$DB_PRE"
@@ -95,12 +97,19 @@ run_old_history_upgrade_test() {
   rm -f "$DB_OLD"
   apply_sql_file "$DB_OLD" "$FIXTURES_DIR/legacy_old_history_schema.sql"
 
-  apply_sql_file "$DB_OLD" "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql"
-  assert_download_history_action_shape "$DB_OLD"
+  if [[ -f "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql" ]]; then
+    apply_sql_file "$DB_OLD" "$MIGRATIONS_DIR/20260305000000_download_history_action_schema.sql"
+    assert_download_history_action_shape "$DB_OLD"
 
-  local migrated
-  migrated="$(sqlite3 "$DB_OLD" "SELECT action_id || '|' || release_name || '|' || started_at || '|' || COALESCE(ended_at, '') FROM download_history WHERE id='h1';")"
-  assert_eq "batch-1|Album X|2026-03-01T12:00:00Z|2026-03-01T12:07:00Z" "$migrated" "legacy row should be transformed correctly"
+    local migrated
+    migrated="$(sqlite3 "$DB_OLD" "SELECT action_id || '|' || release_name || '|' || started_at || '|' || COALESCE(ended_at, '') FROM download_history WHERE id='h1';")"
+    assert_eq "batch-1|Album X|2026-03-01T12:00:00Z|2026-03-01T12:07:00Z" "$migrated" "legacy row should be transformed correctly"
+  else
+    # On branches before the action-schema migration exists, verify legacy schema is still valid.
+    local has_batch
+    has_batch="$(sqlite3 "$DB_OLD" "SELECT count(*) FROM pragma_table_info('download_history') WHERE name='batch_id';")"
+    assert_eq "1" "$has_batch" "legacy fixture should still have batch_id before action-schema migration"
+  fi
 }
 
 main() {

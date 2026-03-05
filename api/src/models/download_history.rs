@@ -175,32 +175,48 @@ impl DownloadHistoryRow {
         };
 
         let mut qb = QueryBuilder::<Sqlite>::new("UPDATE download_history SET ");
-        let mut sep = qb.separated(", ");
+        let mut wrote = false;
+
+        let mut push_sep = |qb: &mut QueryBuilder<'_, Sqlite>| {
+            if wrote {
+                qb.push(", ");
+            } else {
+                wrote = true;
+            }
+        };
 
         if let Some(download_status) = update.download_status {
-            sep.push("download_status = ").push_bind(download_status.as_str());
+            push_sep(&mut qb);
+            qb.push("download_status = ")
+                .push_bind(download_status.as_str());
         }
         if let Some(import_status) = update.import_status {
-            sep.push("import_status = ").push_bind(import_status.as_str());
+            push_sep(&mut qb);
+            qb.push("import_status = ").push_bind(import_status.as_str());
         }
         if let Some(error_message) = &update.error_message {
-            sep.push("error_message = ").push_bind(error_message);
+            push_sep(&mut qb);
+            qb.push("error_message = ").push_bind(error_message);
         }
         if let Some(needs_manual_action) = update.needs_manual_action {
-            sep.push("needs_manual_action = ").push_bind(needs_manual_action);
+            push_sep(&mut qb);
+            qb.push("needs_manual_action = ").push_bind(needs_manual_action);
         }
         if let Some(downloaded_at) = &update.downloaded_at {
-            sep.push("downloaded_at = ").push_bind(downloaded_at);
+            push_sep(&mut qb);
+            qb.push("downloaded_at = ").push_bind(downloaded_at);
         }
         if let Some(imported_at) = &update.imported_at {
-            sep.push("imported_at = ").push_bind(imported_at);
+            push_sep(&mut qb);
+            qb.push("imported_at = ").push_bind(imported_at);
         }
         if let Some(ended_at) = &update.ended_at {
-            sep.push("ended_at = ").push_bind(ended_at);
+            push_sep(&mut qb);
+            qb.push("ended_at = ").push_bind(ended_at);
         }
 
-        sep.push("updated_at = ").push_bind(&update.updated_at);
-        drop(sep);
+        push_sep(&mut qb);
+        qb.push("updated_at = ").push_bind(&update.updated_at);
 
         qb.push(" WHERE id = ").push_bind(id).push(" AND user_id = ").push_bind(&update.user_id);
 

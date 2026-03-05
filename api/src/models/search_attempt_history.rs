@@ -146,21 +146,33 @@ impl SearchAttemptRow {
         };
 
         let mut qb = QueryBuilder::<Sqlite>::new("UPDATE search_attempt_history SET ");
-        let mut sep = qb.separated(", ");
+        let mut wrote = false;
 
-        sep.push("status = ").push_bind(update.status.as_str());
+        let mut push_sep = |qb: &mut QueryBuilder<'_, Sqlite>| {
+            if wrote {
+                qb.push(", ");
+            } else {
+                wrote = true;
+            }
+        };
+
+        push_sep(&mut qb);
+        qb.push("status = ").push_bind(update.status.as_str());
 
         if let Some(result_count) = update.result_count {
-            sep.push("result_count = ").push_bind(result_count);
+            push_sep(&mut qb);
+            qb.push("result_count = ").push_bind(result_count);
         }
         if let Some(error_message) = &update.error_message {
-            sep.push("error_message = ").push_bind(error_message);
+            push_sep(&mut qb);
+            qb.push("error_message = ").push_bind(error_message);
         }
         if let Some(ended_at) = &update.ended_at {
-            sep.push("ended_at = ").push_bind(ended_at);
+            push_sep(&mut qb);
+            qb.push("ended_at = ").push_bind(ended_at);
         }
-        sep.push("updated_at = ").push_bind(&update.updated_at);
-        drop(sep);
+        push_sep(&mut qb);
+        qb.push("updated_at = ").push_bind(&update.updated_at);
 
         qb.push(" WHERE id = ")
             .push_bind(id)

@@ -6,6 +6,7 @@ test-migrations:
 test-api:
 	cargo test -p api --features server --test auth_history_search -- --nocapture
 	cargo test -p api --features server --test history_fk_regressions -- --nocapture
+	cargo test -p api --features server --test pipeline_lifecycle -- --nocapture
 
 test-fast: test-migrations test-api
 

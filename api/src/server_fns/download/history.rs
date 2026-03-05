@@ -52,6 +52,7 @@ pub async fn persist_queued_attempts(
             .find(|candidate| item_matches(queue, candidate))
             .cloned()
             .unwrap_or_else(|| fallback_item(queue));
+        let downloadable_item_json = serde_json::to_string(&item).unwrap_or_else(|_| "{}".into());
 
         let status = if queue.error.is_some() {
             DownloadHistoryStatus::Failed
@@ -71,7 +72,7 @@ pub async fn persist_queued_attempts(
             release_name: if item.album.trim().is_empty() {
                 None
             } else {
-                Some(item.album)
+                Some(item.album.clone())
             },
             item_label: queue.item.clone(),
             size_bytes: queue.size as i64,
@@ -80,7 +81,7 @@ pub async fn persist_queued_attempts(
             import_status: ImportHistoryStatus::NotStarted,
             error_message: queue.error.clone(),
             needs_manual_action: queue.error.is_some(),
-            downloadable_item_json: serde_json::to_string(&item).unwrap_or_else(|_| "{}".into()),
+            downloadable_item_json,
             tracks_json: None,
             started_at: now.clone(),
             downloaded_at: None,
