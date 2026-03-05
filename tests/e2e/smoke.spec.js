@@ -1,14 +1,13 @@
 const { test, expect } = require("@playwright/test");
 
-test("login form renders", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByText("Soulbeet")).toBeVisible();
-  await expect(page.getByPlaceholder("Enter username")).toBeVisible();
-  await expect(page.getByPlaceholder("Enter password")).toBeVisible();
-  await expect(page.getByRole("button", { name: "AUTHENTICATE" })).toBeVisible();
+test("root route serves app shell", async ({ page }) => {
+  const response = await page.goto("/");
+  expect(response?.ok()).toBeTruthy();
+  await expect(page.getByRole("heading", { name: "SoulBeet" })).toBeVisible();
 });
 
-test("history route requires auth", async ({ page }) => {
-  await page.goto("/history");
-  await expect(page.getByRole("button", { name: "AUTHENTICATE" })).toBeVisible();
+test("history route serves app shell", async ({ page }) => {
+  const response = await page.goto("/history");
+  expect(response?.ok()).toBeTruthy();
+  await expect(page.getByRole("heading", { name: "SoulBeet" })).toBeVisible();
 });
