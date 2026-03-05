@@ -13,6 +13,7 @@ This document defines repeatable test workflows for:
 - `cargo`
 - `node` + `npm`
 - Docker + Docker Compose (for real-env smoke)
+- Playwright browser runtime dependencies on Linux (`libnspr4`, `libnss3`, etc.)
 
 Quick checks:
 
@@ -25,32 +26,41 @@ docker --version
 docker compose version
 ```
 
+Install Playwright browser binaries:
+
+```bash
+npx playwright install chromium
+```
+
+If Chromium fails to launch with missing shared libraries (example: `libnspr4.so`), install OS deps:
+
+```bash
+sudo npx playwright install-deps chromium
+```
+
 ## Fast Local (pre-commit)
 
 Run the fastest deterministic checks:
 
 ```bash
-make test-migrations
-npm run test:e2e:list
+make test-fast
 ```
 
 Notes:
-- `test-migrations` validates fresh + upgrade migration paths and schema expectations.
-- `test:e2e:list` validates Playwright test discovery without requiring an active app.
+- `test-fast` runs migration tests and API integration tests.
 
 ## Local Full (feature validation)
 
 Run a fuller pass before PR:
 
 ```bash
-make test-migrations
-npm run test:e2e:list
+make test-full
 ```
 
-If app is running and Playwright browser deps are installed, run smoke UI:
+If you only want to verify Playwright discovery:
 
 ```bash
-npx playwright test
+npm run test:e2e:list
 ```
 
 ## Real Environment Smoke (`/opt/soulbeet`)
@@ -79,18 +89,10 @@ sqlite3 /opt/soulbeet/data/soulbeet.db \
   "SELECT version, description, success FROM _sqlx_migrations ORDER BY version;"
 ```
 
-## Known Limitation
-
-`cargo test -p api --features server` currently fails in this repository state due existing
-`dioxus_server`/server-fn macro compile issues in `api` test target context.
-
-This does not block migration script coverage or Playwright discovery checks, but it blocks
-Rust integration test execution until the compile issue is resolved.
-
 ## Recommended Pre-PR Checklist
 
-1. `make test-migrations`
-2. `npm run test:e2e:list`
+1. `make test-fast`
+2. `make test-full` (or `npm run test:e2e:list` if browser runtime deps are not installed)
 3. Real env smoke deploy (`docker compose build/up/logs`)
 4. Manual auth/search/history smoke in browser:
    - login
