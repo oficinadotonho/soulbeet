@@ -20,6 +20,7 @@ pub fn setup_test_env(test_name: &str) -> String {
 }
 
 #[cfg(feature = "server")]
+#[allow(dead_code)]
 pub async fn init_db() {
     let _ = sqlx::query_scalar::<_, i64>("SELECT 1")
         .fetch_one(&*api::db::DB)
@@ -28,6 +29,7 @@ pub async fn init_db() {
 }
 
 #[cfg(feature = "server")]
+#[allow(dead_code)]
 pub async fn count_rows(table: &str) -> i64 {
     let sql = format!("SELECT COUNT(*) FROM {table}");
     sqlx::query_scalar::<_, i64>(&sql)
