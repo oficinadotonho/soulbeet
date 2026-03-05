@@ -58,6 +58,12 @@ pub async fn persist_queued_attempts(
         } else {
             DownloadHistoryStatus::Queued
         };
+        let release_name = if item.album.trim().is_empty() {
+            None
+        } else {
+            Some(item.album.clone())
+        };
+        let downloadable_item_json = serde_json::to_string(&item).unwrap_or_else(|_| "{}".into());
 
         let row = NewDownloadHistory {
             id: Uuid::new_v4().to_string(),
@@ -68,11 +74,7 @@ pub async fn persist_queued_attempts(
             source: item.source,
             title: item.title,
             artist: item.artist,
-            release_name: if item.album.trim().is_empty() {
-                None
-            } else {
-                Some(item.album)
-            },
+            release_name,
             item_label: queue.item.clone(),
             size_bytes: queue.size as i64,
             target_folder: target_folder.to_string(),
@@ -80,7 +82,7 @@ pub async fn persist_queued_attempts(
             import_status: ImportHistoryStatus::NotStarted,
             error_message: queue.error.clone(),
             needs_manual_action: queue.error.is_some(),
-            downloadable_item_json: serde_json::to_string(&item).unwrap_or_else(|_| "{}".into()),
+            downloadable_item_json,
             tracks_json: None,
             started_at: now.clone(),
             downloaded_at: None,

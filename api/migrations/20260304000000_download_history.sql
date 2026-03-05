@@ -2,14 +2,17 @@ CREATE TABLE IF NOT EXISTS download_history (
     id TEXT PRIMARY KEY NOT NULL,
     user_id TEXT NOT NULL,
 
-    action_id TEXT NOT NULL,
+    batch_id TEXT NOT NULL,
+    parent_history_id TEXT,
+    attempt_no INTEGER NOT NULL DEFAULT 1,
+
     backend_id TEXT NOT NULL,
     queue_item_id TEXT NOT NULL,
     source TEXT NOT NULL,
 
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
-    release_name TEXT,
+    album TEXT,
     item_label TEXT NOT NULL,
     size_bytes INTEGER NOT NULL DEFAULT 0,
 
@@ -28,24 +31,27 @@ CREATE TABLE IF NOT EXISTS download_history (
     downloadable_item_json TEXT NOT NULL,
     tracks_json TEXT,
 
-    started_at TEXT NOT NULL,
+    queued_at TEXT NOT NULL,
     downloaded_at TEXT,
     imported_at TEXT,
-    ended_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
 
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_history_id) REFERENCES download_history(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_download_history_user_started
-    ON download_history(user_id, started_at DESC, id DESC);
-
-CREATE INDEX IF NOT EXISTS idx_download_history_user_action
-    ON download_history(user_id, action_id);
+CREATE INDEX IF NOT EXISTS idx_download_history_user_queued
+    ON download_history(user_id, queued_at DESC, id DESC);
 
 CREATE INDEX IF NOT EXISTS idx_download_history_user_download_status
     ON download_history(user_id, download_status);
 
 CREATE INDEX IF NOT EXISTS idx_download_history_user_import_status
     ON download_history(user_id, import_status);
+
+CREATE INDEX IF NOT EXISTS idx_download_history_user_batch
+    ON download_history(user_id, batch_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_download_history_unique_attempt
+    ON download_history(user_id, batch_id, queue_item_id, attempt_no);
