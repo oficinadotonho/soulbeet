@@ -52,7 +52,6 @@ pub async fn persist_queued_attempts(
             .find(|candidate| item_matches(queue, candidate))
             .cloned()
             .unwrap_or_else(|| fallback_item(queue));
-
         let status = if queue.error.is_some() {
             DownloadHistoryStatus::Failed
         } else {
