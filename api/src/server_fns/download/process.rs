@@ -15,6 +15,27 @@ use super::utils::resolve_download_path;
 use crate::config::CONFIG;
 
 #[cfg(feature = "server")]
+async fn resolve_download_path_with_retry(
+    item: &str,
+    download_base: &std::path::Path,
+) -> Option<String> {
+    const MAX_ATTEMPTS: usize = 8;
+    const RETRY_DELAY_MS: u64 = 1500;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        if let Some(path) = resolve_download_path(item, download_base) {
+            return Some(path);
+        }
+
+        if attempt + 1 < MAX_ATTEMPTS {
+            tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
+        }
+    }
+
+    None
+}
+
+#[cfg(feature = "server")]
 pub async fn process_downloads(
     successful_downloads: Vec<DownloadProgress>,
     user_id: String,
@@ -37,7 +58,9 @@ pub async fn process_downloads(
             let mut singletons: Vec<DownloadProgress> = Vec::new();
 
             for download in successful_downloads {
-                if let Some(path) = resolve_download_path(&download.item, &download_path_buf) {
+                if let Some(path) =
+                    resolve_download_path_with_retry(&download.item, &download_path_buf).await
+                {
                     let p = std::path::Path::new(&path);
                     // group by parent directory (album or release)
                     if let Some(parent) = p.parent() {
@@ -77,7 +100,9 @@ pub async fn process_downloads(
             }
 
             for download in singletons {
-                if let Some(path) = resolve_download_path(&download.item, &download_path_buf) {
+                if let Some(path) =
+                    resolve_download_path_with_retry(&download.item, &download_path_buf).await
+                {
                     import_group(
                         vec![download],
                         user_id.clone(),
@@ -92,7 +117,9 @@ pub async fn process_downloads(
         } else {
             // singleton mode
             for download in successful_downloads {
-                if let Some(path) = resolve_download_path(&download.item, &download_path_buf) {
+                if let Some(path) =
+                    resolve_download_path_with_retry(&download.item, &download_path_buf).await
+                {
                     import_group(
                         vec![download],
                         user_id.clone(),

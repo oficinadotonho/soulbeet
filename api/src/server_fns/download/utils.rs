@@ -99,7 +99,7 @@ pub fn resolve_download_path(filename: &str, download_base: &Path) -> Option<Str
 /// Recursively search for a file in a directory (limited depth to avoid excessive searching)
 #[cfg(feature = "server")]
 fn find_file_recursive(dir: &Path, target_name: &std::ffi::OsStr) -> Option<PathBuf> {
-    const MAX_DEPTH: usize = 5;
+    const MAX_DEPTH: usize = 10;
 
     fn search(dir: &Path, target_name: &std::ffi::OsStr, depth: usize) -> Option<PathBuf> {
         if depth > MAX_DEPTH {
