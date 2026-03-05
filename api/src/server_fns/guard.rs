@@ -4,6 +4,8 @@ use crate::auth::Claims;
 use axum::{extract::FromRequestParts, http::StatusCode};
 #[cfg(feature = "server")]
 use crate::auth;
+#[cfg(feature = "server")]
+use crate::models::user::User;
 
 pub struct AuthSession(pub Claims);
 
@@ -34,7 +36,17 @@ where
 
         match token {
             Some(token) => match auth::verify_token(&token) {
-                Ok(claims) => Ok(AuthSession(claims)),
+                Ok(claims) => {
+                    // Prevent stale JWTs from referencing deleted/reset users.
+                    if User::get_by_id(&claims.sub).await.is_err() {
+                        tracing::warn!(
+                            "Auth failure: token user {} no longer exists",
+                            claims.sub
+                        );
+                        return Err((StatusCode::UNAUTHORIZED, "User not found".to_string()));
+                    }
+                    Ok(AuthSession(claims))
+                }
                 Err(e) => {
                     tracing::error!("Auth failure: Invalid token {}: {}", token, e);
                     Err((StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e)))
